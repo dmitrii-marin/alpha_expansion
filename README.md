@@ -2,14 +2,14 @@
 
 This is a multi-thread wrapper over [GCO v3](https://vision.cs.uwaterloo.ca/code/). 
 
-# Compile and install
+## Compile and install
 
 ```sh
 # swig -python -c++ alpha_expansion.i
 # python setup.py install
 ```
 
-# Use
+## Use
 
 ```python
 
@@ -38,7 +38,22 @@ This is a multi-thread wrapper over [GCO v3](https://vision.cs.uwaterloo.ca/code
 #
 def alphaexpansion.run_expansion(
             images, x0, ROI, seeds, unary,
-            max_iter, potts_weight, out, unary_energy, smooth_energy)**
-
-
+            max_iter, potts_weight, out, unary_energy, smooth_energy)
 ```
+
+## Citation
+
+If you find this code useful in your research, consider citing
+```
+@InProceedings{ADM:cvpr19,
+  author = {Dmitrii Marin and Meng Tang and Ismail Ben Ayed and Yuri Boykov},
+  title = {Beyond Gradient Descent for Regularized Segmentation Losses},
+  booktitle = {IEEE conference on Computer Vision and Pattern Recognition (CVPR)},
+  volume = {},
+  pages = {},
+  month = {June},
+  year = {2019},
+  address = {Long Beach, California}
+}
+```
+Also read the underlying code's [README](gco-v3.0/GCO_README.TXT)
