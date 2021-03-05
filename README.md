@@ -1,6 +1,6 @@
 # Alpha Expansion
 
-This is a multi-thread wrapper over [GCO v3](https://vision.cs.uwaterloo.ca/code/). 
+This is a multi-thread Python wrapper over [GCO v3](https://vision.cs.uwaterloo.ca/code/). 
 
 ## Compile and install
 
