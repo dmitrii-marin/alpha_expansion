@@ -17,7 +17,7 @@ static const int UNLABELED = 255;
 static const int dh[] = { 0, 1, 1, -1 };
 static const int dw[] = { 1, 0, 1,  1 };
 
-void run_expansion_single(const Dtype *image, const Dtype *init_sol,
+void run_expansion_single(const Dtype *image, int K, const Dtype *init_sol,
                           const Dtype *ROI, const Dtype *seeds,
                           const Dtype *unary, int C, int H, int W, int max_iter,
                           float potts_weight, Dtype *gc_segmentation,
@@ -102,30 +102,33 @@ void run_expansion_single(const Dtype *image, const Dtype *init_sol,
       smooth[l1 + l2 * C] = (l1 != l2) ? 1 : 0;
   gc->setSmoothCost(smooth.data());
 
+
   // expected squared distance
   double diff_total = 0;
   int diff_count = 0;
-  for (int c = 0; c < 3; ++c) {
+  for (int c = 0; c < K; ++c) {
     for (int i = 0; i < 4; i++) {
       for (int h = 0; h < H; h++) {
-        for (int w = 0; w < W; w++) {
-          if (ROI[h * W + w] == false)
-            continue;
-          int h2 = h + dh[i];
-          int w2 = w + dw[i];
-          if (w2 < 0 || w2 >= W || h2 < 0 || h2 >= H)
-            continue;
-          if (ROI[h2 * W + w2] == false)
-            continue;
-          Dtype diff =
-              image[c * H * W + h * W + w] - image[c * H * W + h2 * W + w2];
-          diff_total += diff * diff;
-          diff_count++;
-        }
+	for (int w = 0; w < W; w++) {
+	  if (ROI[h * W + w] == false)
+	    continue;
+	  int h2 = h + dh[i];
+	  int w2 = w + dw[i];
+	  if (w2 < 0 || w2 >= W || h2 < 0 || h2 >= H)
+	    continue;
+	  if (ROI[h2 * W + w2] == false)
+	    continue;
+	  if (K == 3) {
+		  Dtype diff =
+		      image[c * H * W + h * W + w] - image[c * H * W + h2 * W + w2];
+		  diff_total += diff * diff;
+	  }
+	  diff_count++;
+	}
       }
     }
   }
-  diff_count /= 3;
+  diff_count /= K;
   double sigmasquared = diff_total / diff_count;
 
   if (sigmasquared == 0)
@@ -146,18 +149,24 @@ void run_expansion_single(const Dtype *image, const Dtype *init_sol,
           continue;
         if (ROI[h2 * W + w2] == false)
           continue;
-        Dtype diff_b =
-            image[0 * H * W + h * W + w] - image[0 * H * W + h2 * W + w2];
-        Dtype diff_g =
-            image[1 * H * W + h * W + w] - image[1 * H * W + h2 * W + w2];
-        Dtype diff_r =
-            image[2 * H * W + h * W + w] - image[2 * H * W + h2 * W + w2];
-        Dtype diff = diff_b * diff_b + diff_g * diff_g + diff_r * diff_r;
-        Dtype cost = potts_weight * exp(-diff / 2 / sigmasquared);
-        if (i > 1)
-          cost /= M_SQRT2;
-        cost = cost * count / diff_count;
-        gc->setNeighbors(h * W + w, h2 * W + w2, SCALE * cost);
+        Dtype cost;
+        if (K == 3) {
+		Dtype diff_b =
+		    image[0 * H * W + h * W + w] - image[0 * H * W + h2 * W + w2];
+		Dtype diff_g =
+		    image[1 * H * W + h * W + w] - image[1 * H * W + h2 * W + w2];
+		Dtype diff_r =
+		    image[2 * H * W + h * W + w] - image[2 * H * W + h2 * W + w2];
+		Dtype diff = diff_b * diff_b + diff_g * diff_g + diff_r * diff_r;
+		cost = potts_weight * exp(-diff / 2 / sigmasquared);
+		if (i > 1)
+		  cost /= M_SQRT2;
+		cost = cost * count / diff_count;
+        } else {
+		Dtype diff = std::max(image[h * W + w], image[h2 * W + w2]);
+		cost = potts_weight * std::max(Dtype(0), 1 - diff) * count / diff_count;
+        }
+	gc->setNeighbors(h * W + w, h2 * W + w2, SCALE * cost);
       }
     }
 
@@ -202,7 +211,7 @@ void run_expansion_single(const Dtype *image, const Dtype *init_sol,
   // printf("%lf %d %lf\n", *unary_energy, count, *smooth_energy);
 }
 
-void run_expansion_batch(const Dtype *image, const Dtype *init_sol,
+void run_expansion_batch(const Dtype *image, int K, const Dtype *init_sol,
                          const Dtype *ROI, const Dtype *seeds,
                          const Dtype *unary, int N, int C, int H, int W,
                          int max_iter, float potts_weight,
@@ -213,7 +222,7 @@ void run_expansion_batch(const Dtype *image, const Dtype *init_sol,
 #pragma omp parallel for
   for (int i = 0; i < N; ++i)
     try {
-      run_expansion_single(image + i * 3 * H * W, init_sol ? init_sol + i * H * W : NULL,
+      run_expansion_single(image + i * K * H * W, K, init_sol ? init_sol + i * H * W : NULL,
                            ROI + i * H * W, seeds + i * H * W,
                            unary + i * C * H * W, C, H, W, max_iter, potts_weight,
                            gc_segmentation + i * H * W, unary_energy + i,
@@ -224,13 +233,13 @@ void run_expansion_batch(const Dtype *image, const Dtype *init_sol,
     }
 }
 
-void run_expansion(const Dtype *images, int, int, int, int,
+void run_expansion(const Dtype *images, int, int K, int, int,
                    const Dtype *init_sol, int, int, int, int, const Dtype *ROI,
                    int, int, int, int, const Dtype *seeds, int, int, int, int,
                    const Dtype *unary, int N, int C, int H, int W, int max_iter,
                    float potts_weight, Dtype *gc_segmentation, int, int, int,
                    int, Dtype *unary_energy, int, Dtype *smooth_energy, int)
 {
-  run_expansion_batch(images, init_sol, ROI, seeds, unary, N, C, H, W, max_iter,
+  run_expansion_batch(images, K, init_sol, ROI, seeds, unary, N, C, H, W, max_iter,
                       potts_weight, gc_segmentation, unary_energy, smooth_energy);
 }
